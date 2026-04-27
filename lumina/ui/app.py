@@ -153,7 +153,7 @@ examples = _create_example_samples()
 def process_photo(file, upscale, upscale_scale, denoise, face_restore, color_correct, sharpen):
     """Point d'entrée UI pour le traitement photo."""
     if file is None:
-        return None, None, "Veuillez d'abord uploader une photo.", None, "", gr.update(visible=False)
+        return None, "Veuillez d'abord uploader une photo.", None, "", gr.update(visible=False)
 
     input_path = file
 
@@ -186,13 +186,13 @@ def process_photo(file, upscale, upscale_scale, denoise, face_restore, color_cor
             f"- Fichier : `{output_path.name}`"
         )
 
-        return None, str(output_path), msg, str(output_path), "", gr.update(visible=False)
+        return str(output_path), msg, str(output_path), "", gr.update(visible=False)
 
     except Exception as e:
         logger.exception("Erreur traitement photo")
         err_text = f"❌ **Erreur** : {e}"
         raw_err = str(e)
-        return None, None, err_text, None, raw_err, gr.update(visible=True)
+        return None, err_text, None, raw_err, gr.update(visible=True)
 
 
 def process_video_ui(file, upscale, upscale_scale, denoise, face_restore, interpolate, interp_factor):
@@ -549,6 +549,7 @@ def build_app() -> gr.Blocks:
                             label="📥 Télécharger le résultat",
                             interactive=False,
                             visible=True,
+                            file_count="single",
                         )
 
                 # ─── Exemples avant/après ───────────────────────────────
