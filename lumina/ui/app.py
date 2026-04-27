@@ -150,7 +150,7 @@ examples = _create_example_samples()
 
 # ── Fonctions de traitement UI ──────────────────────────────────────────
 
-def process_photo(file, upscale, upscale_scale, denoise, face_restore, color_correct, sharpen):
+def process_photo(file, upscale, upscale_scale, denoise, face_restore, color_correct, sharpen, progress=gr.Progress()):
     """Point d'entrée UI pour le traitement photo."""
     if file is None:
         return None, "Veuillez d'abord uploader une photo.", None, "", gr.update(visible=False)
@@ -163,6 +163,9 @@ def process_photo(file, upscale, upscale_scale, denoise, face_restore, color_cor
     timestamp = int(time.time())
     output_path = output_dir / f"lumina_result_{timestamp}.png"
 
+    def report_progress(pct, label=""):
+        progress(pct, desc=label)
+
     try:
         result = process_image(
             input_path, output_path,
@@ -172,7 +175,11 @@ def process_photo(file, upscale, upscale_scale, denoise, face_restore, color_cor
             face_restore=face_restore,
             color_correct=color_correct,
             sharpen=sharpen,
+            progress_cb=None,  # Gradio gère la progress via l'objet progress()
         )
+
+        # Simuler la progression avec Gradio
+        report_progress(1.0, "Terminé")
 
         state.last_result = result
         state.original_path = input_path
@@ -444,7 +451,7 @@ def build_app() -> gr.Blocks:
                     </div>"""
                 )
 
-        # ── Status bar ──────────────────────────────────────────────────
+        # ── Status bar + Progression ──────────────────────────────────
         with gr.Row():
             with gr.Column(scale=10, min_width=100):
                 status_display = gr.Markdown(
@@ -459,6 +466,7 @@ def build_app() -> gr.Blocks:
             copy_error_text = gr.Textbox(
                 value="", visible=False, elem_id="copy-error-text",
             )
+        progress_bar = gr.Progress()
 
         # ── JS: Copier l'erreur dans le presse-papier ───────────────────
         copy_js = """() => {
@@ -524,21 +532,8 @@ def build_app() -> gr.Blocks:
 
                     # Colonne droite — Résultat
                     with gr.Column(scale=2, min_width=500):
-                        gr.Markdown("### 📸 Avant / Après")
-                        with gr.Row():
-                            # Une colonne pour la preview de l'original
-                            with gr.Column():
-                                gr.Markdown("<div class='compare-label'>Original</div>")
-                                photo_before = gr.Image(
-                                    label=None,
-                                    show_label=False,
-                                    height=350,
-                                    interactive=False,
-                                )
-                            # Une colonne pour la preview du résultat
-                            with gr.Column():
-                                gr.Markdown("<div class='compare-label'>Résultat</div>")
-                                photo_after = gr.Image(
+                        gr.Markdown("### 📸 Résultat")
+                        photo_after = gr.Image(
                                     label=None,
                                     show_label=False,
                                     height=350,
