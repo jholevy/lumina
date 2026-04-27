@@ -153,7 +153,7 @@ examples = _create_example_samples()
 def process_photo(file, upscale, upscale_scale, denoise, face_restore, color_correct, sharpen):
     """Point d'entrée UI pour le traitement photo."""
     if file is None:
-        return None, None, "Veuillez d'abord uploader une photo.", None
+        return None, None, "Veuillez d'abord uploader une photo.", None, "", gr.update(visible=False)
 
     input_path = file
 
@@ -186,11 +186,13 @@ def process_photo(file, upscale, upscale_scale, denoise, face_restore, color_cor
             f"- Fichier : `{output_path.name}`"
         )
 
-        return None, str(output_path), msg, str(output_path)
+        return None, str(output_path), msg, str(output_path), "", gr.update(visible=False)
 
     except Exception as e:
         logger.exception("Erreur traitement photo")
-        return None, None, f"❌ **Erreur** : {e}", None
+        err_text = f"❌ **Erreur** : {e}"
+        raw_err = str(e)
+        return None, None, err_text, None, raw_err, gr.update(visible=True)
 
 
 def process_video_ui(file, upscale, upscale_scale, denoise, face_restore, interpolate, interp_factor):
@@ -327,6 +329,20 @@ input, textarea, select, .dropdown, .file-preview {
     border-left-color: var(--error);
 }
 
+.copy-btn button {
+    background: var(--bg-tertiary) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text-secondary) !important;
+    padding: 6px 12px !important;
+    font-size: 13px !important;
+}
+
+.copy-btn button:hover {
+    border-color: var(--accent) !important;
+    color: var(--text-primary) !important;
+    background: var(--bg-secondary) !important;
+}
+
 .header-badge {
     display: inline-block;
     padding: 4px 12px;
@@ -430,10 +446,31 @@ def build_app() -> gr.Blocks:
 
         # ── Status bar ──────────────────────────────────────────────────
         with gr.Row():
-            status_display = gr.Markdown(
-                "💡 **Prêt** — Upload une photo ou vidéo pour commencer.",
-                elem_classes="status-msg",
+            with gr.Column(scale=10, min_width=100):
+                status_display = gr.Markdown(
+                    "💡 **Prêt** — Upload une photo ou vidéo pour commencer.",
+                    elem_classes="status-msg",
+                )
+            with gr.Column(scale=1, min_width=60):
+                copy_error_btn = gr.Button(
+                    "📋 Copier", elem_classes="copy-btn",
+                    visible=False,
+                )
+            copy_error_text = gr.Textbox(
+                value="", visible=False, elem_id="copy-error-text",
             )
+
+        # ── JS: Copier l'erreur dans le presse-papier ───────────────────
+        copy_js = """() => {
+            const txt = document.getElementById('copy-error-text');
+            if (!txt) return;
+            const val = txt.querySelector('textarea')?.value || txt.textContent;
+            navigator.clipboard.writeText(val).then(() => {
+                const btn = document.querySelector('.copy-btn button');
+                if (btn) { btn.textContent = '✅ Copié'; setTimeout(() => { btn.textContent = '📋 Copier'; }, 2000); }
+            });
+        }"""
+        copy_error_btn.click(fn=None, js=copy_js, outputs=[])
 
         # ── Tabs ────────────────────────────────────────────────────────
         with gr.Tabs() as tabs:
@@ -553,12 +590,6 @@ def build_app() -> gr.Blocks:
                     outputs=[upscale_scale],
                 )
 
-                photo_input.change(
-                    fn=lambda f: (str(f.name) if f else None,),
-                    inputs=[photo_input],
-                    outputs=[photo_before],
-                )
-
                 process_photo_btn.click(
                     fn=process_photo,
                     inputs=[
@@ -566,7 +597,8 @@ def build_app() -> gr.Blocks:
                         denoise_photo_chk, face_restore_photo_chk,
                         color_photo_chk, sharpen_photo_chk,
                     ],
-                    outputs=[photo_after, status_display, photo_download],
+                    outputs=[photo_after, status_display, photo_download,
+                             copy_error_text, copy_error_btn],
                 )
 
             # ─── TAB VIDEO ──────────────────────────────────────────────
