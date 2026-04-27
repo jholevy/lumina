@@ -155,7 +155,7 @@ def process_photo(file, upscale, upscale_scale, denoise, face_restore, color_cor
     if file is None:
         return None, None, "Veuillez d'abord uploader une photo.", None
 
-    input_path = file.name
+    input_path = file
 
     # Nom de sortie
     output_dir = APP_DIR / "results"
@@ -443,10 +443,10 @@ def build_app() -> gr.Blocks:
                     # Colonne gauche — Upload + options
                     with gr.Column(scale=1, min_width=350):
                         gr.Markdown("### 📤 Upload")
-                        photo_input = gr.File(
+                        photo_input = gr.Image(
                             label="Choisir une photo",
-                            file_types=["image"],
-                            file_count="single",
+                            type="filepath",
+                            height=250,
                             elem_classes="input-container",
                         )
 
