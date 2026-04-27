@@ -58,6 +58,7 @@ def main():
         show_error=True,
         theme=gr.themes.Soft(),
         css=CSS,
+        allowed_paths=[str(APP_DIR / "results")],
     )
 
 

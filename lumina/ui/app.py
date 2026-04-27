@@ -186,7 +186,7 @@ def process_photo(file, upscale, upscale_scale, denoise, face_restore, color_cor
             f"- Fichier : `{output_path.name}`"
         )
 
-        return str(input_path), str(output_path), msg, str(output_path)
+        return None, str(output_path), msg, str(output_path)
 
     except Exception as e:
         logger.exception("Erreur traitement photo")
@@ -566,7 +566,7 @@ def build_app() -> gr.Blocks:
                         denoise_photo_chk, face_restore_photo_chk,
                         color_photo_chk, sharpen_photo_chk,
                     ],
-                    outputs=[photo_before, photo_after, status_display, photo_download],
+                    outputs=[photo_after, status_display, photo_download],
                 )
 
             # ─── TAB VIDEO ──────────────────────────────────────────────
