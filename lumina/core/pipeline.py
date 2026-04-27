@@ -14,22 +14,39 @@ from lumina.config import get_device
 
 logger = logging.getLogger(__name__)
 
-# ── Flag pour savoir si les modèles lourds sont dispo ──────────────────
+# ── Détection des moteurs d'upscale disponibles ────────────────────────
 
-_HAS_TORCH = False
-_HAS_REALESRGAN = False
+_HAS_REALESRGAN_NCNN = False
+_HAS_REALESRGAN_PYTORCH = False
+_HAS_REALESRGAN_OFFICIAL = False
 
+# Real-ESRGAN via PyTorch pur (sans basicsr) — fallback si basicsr manque
+from lumina.core.realesrgan_pure import REALESRGAN_PYTORCH_OK
+_HAS_REALESRGAN_PYTORCH = REALESRGAN_PYTORCH_OK
+
+# Real-ESRGAN officiel (basicsr + realesrgan)
 try:
-    import torch
-    _HAS_TORCH = True
-    try:
-        from basicsr.archs.rrdbnet_arch import RRDBNet
-        from realesrgan import RealESRGANer
-        _HAS_REALESRGAN = True
-    except ImportError:
-        logger.info("Real-ESRGAN PyTorch non installé — fallback OpenCV")
+    from basicsr.archs.rrdbnet_arch import RRDBNet
+    from realesrgan import RealESRGANer
+    _HAS_REALESRGAN_OFFICIAL = True
+    logger.info("Real-ESRGAN officiel disponible")
 except ImportError:
-    logger.info("PyTorch non installé — fallback OpenCV pour tous les modèles")
+    pass
+
+# NCNN binaire (optionnel, segfault sur Apple Silicon)
+_NCNN_BIN = Path(__file__).resolve().parent.parent.parent / "bin" / "realesrgan-ncnn-vulkan"
+if _NCNN_BIN.exists():
+    _HAS_REALESRGAN_NCNN = True
+    logger.info(f"Real-ESRGAN NCNN disponible: {_NCNN_BIN}")
+
+if _HAS_REALESRGAN_OFFICIAL:
+    logger.info("Moteur upscale: Real-ESRGAN officiel")
+elif _HAS_REALESRGAN_PYTORCH:
+    logger.info("Moteur upscale: Real-ESRGAN PyTorch pur")
+elif _HAS_REALESRGAN_NCNN:
+    logger.info("Moteur upscale: Real-ESRGAN NCNN")
+else:
+    logger.info("Real-ESRGAN non installé — fallback OpenCV resize")
 
 
 # ── Pipeline principal ──────────────────────────────────────────────────
@@ -257,27 +274,77 @@ def process_video(
 # ── Modules de traitement ───────────────────────────────────────────────
 
 def _upscale_image(img: np.ndarray, scale: int = 2) -> np.ndarray:
-    """Upscaling — utilise Real-ESRGAN si dispo, sinon OpenCV."""
-    if _HAS_REALESRGAN:
+    """Upscaling — Real-ESRGAN officiel > PyTorch pur > NCNN > OpenCV."""
+    h, w = img.shape[:2]
+
+    # 1. Real-ESRGAN officiel (basicsr + realesrgan, meilleure qualité)
+    if _HAS_REALESRGAN_OFFICIAL:
         try:
+            from basicsr.archs.rrdbnet_arch import RRDBNet
+            from realesrgan import RealESRGANer
+            device = get_device()
             model = RealESRGANer(
                 scale=scale,
                 model_path=None,
                 tile=0, tile_pad=10, pre_pad=0,
-                half=False,
-                device=get_device(),
+                half=(device != "cpu"),
+                device=device,
             )
-            # Reconstruit un RRDBNet basique
             model.model = RRDBNet(num_in_ch=3, num_out_ch=3,
                                   num_feat=64, num_block=23, num_grow_ch=32,
-                                  scale=scale)
+                                  scale=4)
+            # Charger le modèle depuis le cache
+            model_path = Path.home() / ".lumina" / "models" / "RealESRGAN_x4plus.pth"
+            if model_path.exists():
+                import torch
+                state = torch.load(model_path, map_location="cpu", weights_only=True)
+                model.model.load_state_dict(state["params_ema"], strict=False)
+            model.model = model.model.to(device).eval()
             output, _ = model.enhance(img, outscale=scale)
+            logger.info(f"  Upscale Real-ESRGAN officiel ({device}) "
+                        f"{w}x{h} -> {output.shape[1]}x{output.shape[0]}")
             return output
         except Exception as e:
-            logger.warning(f"Real-ESRGAN: {e}, fallback OpenCV")
+            logger.warning(f"  Real-ESRGAN officiel: {e}")
 
-    # Fallback OpenCV — interpolation LANCZOS
-    h, w = img.shape[:2]
+    # 2. Real-ESRGAN via PyTorch pur (MPS)
+    if _HAS_REALESRGAN_PYTORCH:
+        from lumina.core.realesrgan_pure import upscale_with_realesrgan
+        try:
+            result = upscale_with_realesrgan(img, scale=scale, device="mps")
+            if result is not None:
+                return result
+        except Exception as e:
+            logger.warning(f"  Real-ESRGAN PyTorch: {e}")
+
+    # 3. NCNN binaire (si compatible)
+    if _HAS_REALESRGAN_NCNN:
+        try:
+            import tempfile as _tf
+            with _tf.NamedTemporaryFile(suffix=".png", delete=False) as f_in, \
+                 _tf.NamedTemporaryFile(suffix=".png", delete=False) as f_out:
+                f_in_name = f_in.name
+                f_out_name = f_out.name
+
+            cv2.imwrite(f_in_name, img)
+            subprocess.run(
+                [str(_NCNN_BIN), "-i", f_in_name, "-o", f_out_name,
+                 "-s", str(scale), "-n", "realesrgan-x4plus"],
+                capture_output=True, timeout=120,
+            )
+            result = cv2.imread(f_out_name)
+            Path(f_in_name).unlink(missing_ok=True)
+            Path(f_out_name).unlink(missing_ok=True)
+
+            if result is not None:
+                logger.info(f"  Upscale NCNN {w}x{h} -> {result.shape[1]}x{result.shape[0]}")
+                return result
+            else:
+                logger.warning("  NCNN: fichier de sortie vide, fallback")
+        except Exception as e:
+            logger.warning(f"  NCNN échoué: {e}, fallback")
+
+    # 4. Fallback OpenCV
     interp = cv2.INTER_LANCZOS4 if scale > 2 else cv2.INTER_CUBIC
     logger.info(f"  Upscale OpenCV {w}x{h} -> {w*scale}x{h*scale}")
     return cv2.resize(img, (w * scale, h * scale), interpolation=interp)
