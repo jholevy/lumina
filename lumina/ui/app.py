@@ -408,9 +408,7 @@ def build_app() -> gr.Blocks:
                  "CPU (NCNN)"
 
     with gr.Blocks(
-        css=CSS,
         title="Lumina — Enhancement Tool",
-        theme=gr.themes.Soft(),
         analytics_enabled=False,
     ) as app:
         # ── Header ──────────────────────────────────────────────────────
@@ -525,26 +523,26 @@ def build_app() -> gr.Blocks:
                         with gr.Group(elem_classes="feature-card"):
                             gr.Markdown("**🔍 Upscaling**")
                             gr.Markdown("*Agrandit l'image sans perte de qualité*")
-                            gr.Image(value=examples["upscale"][0], height=120, show_label=False, show_share_button=False)
-                            gr.Image(value=examples["upscale"][1], height=120, show_label=False, show_share_button=False)
+                            gr.Image(value=examples["upscale"][0], height=120, show_label=False)
+                            gr.Image(value=examples["upscale"][1], height=120, show_label=False)
                     with gr.Column(scale=1):
                         with gr.Group(elem_classes="feature-card"):
                             gr.Markdown("**🧹 Débruitage**")
                             gr.Markdown("*Supprime le bruit numérique*")
-                            gr.Image(value=examples["denoise"][0], height=120, show_label=False, show_share_button=False)
-                            gr.Image(value=examples["denoise"][1], height=120, show_label=False, show_share_button=False)
+                            gr.Image(value=examples["denoise"][0], height=120, show_label=False)
+                            gr.Image(value=examples["denoise"][1], height=120, show_label=False)
                     with gr.Column(scale=1):
                         with gr.Group(elem_classes="feature-card"):
                             gr.Markdown("**👤 Restauration visages**")
                             gr.Markdown("*Répare les visages flous/pixelisés*")
-                            gr.Image(value=examples["face_restore"][0], height=120, show_label=False, show_share_button=False)
-                            gr.Image(value=examples["face_restore"][1], height=120, show_label=False, show_share_button=False)
+                            gr.Image(value=examples["face_restore"][0], height=120, show_label=False)
+                            gr.Image(value=examples["face_restore"][1], height=120, show_label=False)
                     with gr.Column(scale=1):
                         with gr.Group(elem_classes="feature-card"):
                             gr.Markdown("**🎨 Correction couleur**")
                             gr.Markdown("*Balance blancs + contraste auto*")
-                            gr.Image(value=examples["color_correct"][0], height=120, show_label=False, show_share_button=False)
-                            gr.Image(value=examples["color_correct"][1], height=120, show_label=False, show_share_button=False)
+                            gr.Image(value=examples["color_correct"][0], height=120, show_label=False)
+                            gr.Image(value=examples["color_correct"][1], height=120, show_label=False)
 
                 # ─── Events photo ───────────────────────────────────────
                 def update_scale_visibility(upscale_enabled):

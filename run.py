@@ -5,12 +5,14 @@ import logging
 import sys
 from pathlib import Path
 
+import gradio as gr
+
 # S'assurer que le package est importable
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lumina.config import APP_DIR, LOGS_DIR, get_device
 from lumina.models.manager import model_manager
-from lumina.ui.app import build_app
+from lumina.ui.app import CSS, build_app
 
 
 def setup_logging():
@@ -54,6 +56,8 @@ def main():
         share=False,
         inbrowser=True,
         show_error=True,
+        theme=gr.themes.Soft(),
+        css=CSS,
     )
 
 
